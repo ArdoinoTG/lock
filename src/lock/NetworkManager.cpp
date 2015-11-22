@@ -2,10 +2,6 @@
 #include "NetworkManager.h"
 #include "Entities.h"
 
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <vector>
-
 /**
 * Initializes a new instance of the NetworkManager class.
 */
@@ -21,10 +17,23 @@ NetworkManager::NetworkManager() {
 // ---------------------
 
 int NetworkManager::Init() {
+  Serial.println("NetworkManager::Init");
+
+  Serial.println("Get saved parameters.");
+  // read configuration
+  _settings.Init();
+  delay(50);
   
   // get wifi parameters from EEPROM
-  Entities::WiFiParameters params = _helper.GetWiFiParameters();
+  Entities::WiFiParameters params; 
+  params.ssid = _settings.Configuration.ssid;
+  params.password = _settings.Configuration.password;
 
+  Serial.print("SSID: ");
+  Serial.println(params.ssid);
+  Serial.print("Password: ");
+  Serial.println(params.password);
+  
   if (NetworkManager::ConnectToWiFi(params) == true) {
     Serial.print("Connected to WiFi: ");
     Serial.println(params.ssid);
@@ -45,12 +54,8 @@ int NetworkManager::Init() {
 // ---------------------
 
 std::vector<Entities::WiFiNetwork> NetworkManager::ScanForWiFiNetworks() {
-  
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  //WiFi.mode(WIFI_STA);
-  //WiFi.disconnect();
   delay(100);
-
+  
   Serial.println("scan start");
 
   // WiFi.scanNetworks will return the number of networks found
@@ -68,15 +73,12 @@ std::vector<Entities::WiFiNetwork> NetworkManager::ScanForWiFiNetworks() {
     Serial.println(" networks found");
     for (int i = 0; i < n; ++i)
     {
-      networks[i] = (Entities::WiFiNetwork){ WiFi.SSID(i), WiFi.RSSI(i), ((WiFi.encryptionType(i) == ENC_TYPE_NONE) ? "" : "*") };
+      networks[i] = (Entities::WiFiNetwork){ WiFi.SSID(i), ((WiFi.encryptionType(i) == ENC_TYPE_NONE) ? "" : "*") };
       
       // Print SSID and RSSI for each network found 
       Serial.print(i + 1);
       Serial.print(": ");
       Serial.print(WiFi.SSID(i));
-      Serial.print(" (");
-      Serial.print(WiFi.RSSI(i));
-      Serial.print(")");
       Serial.println((WiFi.encryptionType(i) == ENC_TYPE_NONE) ? "" : "*");
       delay(10);
     }
@@ -85,19 +87,33 @@ std::vector<Entities::WiFiNetwork> NetworkManager::ScanForWiFiNetworks() {
   Serial.println("");
 
   delay(100);
-  //WiFi.softAP(ssid);
-  //delay(400);
   
   return networks;
 }
 
-boolean NetworkManager::DisconnectAndConnectToWiFi(Entities::WiFiParameters params) {
+boolean NetworkManager::DisconnectAndConnectToWiFi(Entities::WiFiParameters &params) {
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(1000);
 
-  return NetworkManager::ConnectToWiFi(params);
+  boolean result = NetworkManager::ConnectToWiFi(params);
+  if (result) {
+    Serial.println("Saving wifi parameters ...");
+
+    strcpy(_settings.Configuration.ssid, params.ssid.c_str());
+    strcpy(_settings.Configuration.password, params.password.c_str());
+
+    //_settings.Configuration.ssid = params.ssid.c_str();
+    //_settings.Configuration.password = params.password.c_str();
+
+    // save ssid and password
+    _settings.SaveSettings();
+  
+    Serial.println("Saving wifi parameters end ...");
+  }
+  
+  return result;
 }
 
 /**
@@ -107,9 +123,10 @@ boolean NetworkManager::DisconnectAndConnectToWiFi(Entities::WiFiParameters para
 // Connect to WiFi.
 // ---------------------
 
-boolean NetworkManager::ConnectToWiFi(Entities::WiFiParameters params) {
+boolean NetworkManager::ConnectToWiFi(Entities::WiFiParameters &params) {
   Serial.print("Connecting to WiFi: ");
   Serial.println(params.ssid);
+  Serial.println(params.password);
 
   if (params.ssid.length() == 0) {
     // No ssid and/or password specified. Cannot connect to WiFi
@@ -131,6 +148,7 @@ boolean NetworkManager::TestAndConnectToWiFi() {
   int retryCounter = 0;
   while (retryCounter < 100) {
     if (WiFi.status() == WL_CONNECTED) { 
+      Serial.println(WiFi.localIP());
       return true; 
     }
 
@@ -140,6 +158,14 @@ boolean NetworkManager::TestAndConnectToWiFi() {
     Serial.println(WiFi.status());    
     retryCounter++;
   }
+/*http://community.blynk.cc/t/external-esp8266-configuration/1820/7
+  unsigned long now = millis();
+while (millis() - now < 10000) {
+  if (wifi.status() == WL_CONNECTED) {
+    return SUCCESS;
+  }
+  delay(100);
+}*/
 
   Serial.println("Connect timed out");
   
@@ -156,7 +182,7 @@ void NetworkManager::SetupAccessPoint() {
   
   /* You can remove the password parameter if you want the AP to be open. */
   //WiFi.softAP(ssid, password);
-  WiFi.softAP(ssid);
+  WiFi.softAP("LockAP");
 
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("AP IP address: ");

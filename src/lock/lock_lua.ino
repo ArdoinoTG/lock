@@ -1,43 +1,38 @@
-/* Create a WiFi access point and provide a web server on it. */
-
+/**
+ * Access Point url http://192.168.4.1
+ */
+ 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
-//#include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <vector>
-
 #include "NetworkManager.h"
 #include "RequestHandler.h"
-#include "Helper.h"
 
 WiFiServer _server(80);
-
 NetworkManager _nm;
-Helper _helper;
 RequestHandler _rh;
 int _serverResult;
 boolean _unlockInProgress = false;
-
-/* 
- * Just a little test message.  Go to http://192.168.4.1 in a web browser
- * connected to this access point to see it.
- */
+unsigned long _previousMillis = 0;
+const long _interval = 10000; // read from settings
+int _ledState = LOW; 
 
 void setup() {
-  delay(500);
-  Serial.begin(115200);
-  EEPROM.begin(512);
+  delay(500);  
+  Serial.begin(115200); // init Serial port
+  EEPROM.begin(4096); // init EEPROM
   delay(500);
 
   Serial.println("Initializing server ... ");
 
-  /* Check for saved wifi connection. If there is no saved connection Access point will will be created.  */
+  /* Check for saved wifi connection. If there is no saved WiFi netoworks, Access point will be created. Access Point URL: http://192.168.4.1 */
   _serverResult = _nm.Init();
- 
   _server.begin();
 
   Serial.println("HTTP server started ... ");
-
+  
+  // unlock PIN out
   pinMode(D1, OUTPUT);
 }
 
@@ -53,10 +48,20 @@ void loop() {
     return;
   }
 
+  unsigned long pm = millis();
+
   // Wait until the client sends some data
   Serial.println("new client");
   while (!client.available()) {
-    delay(1);
+    //Serial.println("new client is not available");
+
+    if (millis() - pm > 10000) {
+      // return after 10 seconds
+      Serial.println("new client was not available for 100 seconds");
+      return;
+    }
+
+    delay(10);
   }
 
   // Read the first line of the request
@@ -64,36 +69,31 @@ void loop() {
   Serial.println(req);
   client.flush();
 
-  String response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html><body><h1>Unknown request</h1><hr /></body></html>";
+  String response = _rh.BuildUnknownRequestReponse();
   
   int action = _rh.ProcessRequest(req, _serverResult);
   Serial.print("action: ");
   Serial.print(action);
+  
   switch (action) {
     case Entities::Welcome:
       {
         Serial.println(" - Welcome");
-        response = _helper.BuildWelcomeResponse();
-      }
-      break;
-    case Entities::WelcomeWithRegisterLink:
-      {
-        Serial.println(" - WelcomeWithRegisterLink");
-        response = _helper.BuildWelcomeRegisterResponse();
+        response = _rh.BuildMainResponse(false, false);
       }
       break;
     case Entities::Register:
       {
         Serial.println(" - Register");
         std::vector<Entities::WiFiNetwork> networks = _nm.ScanForWiFiNetworks();
-        response =_helper.BuildAvailableWiFiReponse(networks);
+        response =_rh.BuildAvailableWiFiReponse(networks);
       } 
       break;
     case Entities::RegisterWiFi:
       {
         Serial.println(" - RegisterWiFi");
 
-        response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html><body>WiFi network is registered. Connecting to selected network ... </body></html>";
+        response = _rh.BuildRegisteredToWiFiNetworkResponse();
 
         Entities::WiFiParameters params = _rh.GetWiFiParameters();
         
@@ -101,10 +101,8 @@ void loop() {
         Serial.println(params.ssid);
         Serial.println(params.password);
         Serial.println("------------");
-        
-        //params.ssid = "Les Couleurs";
-        //params.password = "1nt3rn3t";
-       
+
+        delay(100);
         if (_nm.DisconnectAndConnectToWiFi(params)) {
           Serial.println("Connected to selected WiFi");
           _serverResult = Entities::ConnectedToWiFi;  
@@ -119,6 +117,7 @@ void loop() {
     case Entities::Administration:
       {
         Serial.println(" - Administration");
+        response = _rh.BuildAdministrationResponse(1, false);
       }
       break;
     case Entities::Unlock:
@@ -127,14 +126,78 @@ void loop() {
 
         String PIN = _rh.GetUnlockPIN();
 
-        Serial.print("PIN; ");
+        Serial.print("PIN: ");
         Serial.println(PIN);
 
-        _unlockInProgress = PIN == "1234"; // Get 1234 from EEPROM
+        boolean incorrectPin = true;
+        if (PIN == _nm._settings.Configuration.pin) { // read PIN from settings
+          _previousMillis = millis();
+          _unlockInProgress = true;
+          incorrectPin = false;
+        }
 
-        response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html><body>Unlocking </body></html>";
+        response = _rh.BuildMainResponse(!incorrectPin, incorrectPin);
       }
-    break;
+      break;
+    case Entities::AdministrationPIN:
+      {
+        Serial.println(" - Administration - PIN");
+        response = _rh.BuildAdministrationResponse(2, false);
+      }
+      break;
+    case Entities::AdministrationSetPIN:
+      {
+        Serial.println(" - Administration - Set PIN");
+
+        Entities::PINParameters params = _rh.GetPINParameters();
+
+        Serial.println("------------");
+        Serial.println(params.oldpin);
+        Serial.println(params.newpin);
+        Serial.println(params.cnewpin);
+        Serial.println("");
+        Serial.println(_nm._settings.Configuration.pin);
+        Serial.println("------------");
+
+        String temp1(params.oldpin);
+        String temp2(_nm._settings.Configuration.pin);
+        String temp3(params.newpin);
+        String temp4(params.cnewpin);
+        
+        // check old pin
+        if (temp1 != temp2) {
+          // incorrect old pin
+          Serial.println("Incorrect old pin");
+          response = _rh.BuildAdministrationResponse(2, true);  
+        }
+        else if (temp3 != temp4) {
+          // check new pin and confirm new pin match
+          Serial.println("New pin and confirm new pin does not match");
+          //TODO inform user
+          response = _rh.BuildAdministrationResponse(2, false);
+        }
+        else {
+          Serial.println("Save new pin");
+          // save
+          strcpy(_nm._settings.Configuration.pin, params.newpin);
+          _nm._settings.SaveSettings();
+          // return administration
+          response = _rh.BuildAdministrationResponse(1, false);
+        }
+      }
+      break;
+    case Entities::AdministrationNFC:
+      {
+        Serial.println(" - Administration - NFC");
+        response = _rh.BuildAdministrationResponse(3, false);
+      }
+      break;
+    case Entities::AdministrationSetNFC:
+      {
+        Serial.println(" - Administration- Set NFC");
+        response = _rh.BuildAdministrationResponse(3, false);
+      }
+      break;
     case Entities::UnknownRequest:
       {
         Serial.println(" - UnknownRequest");
@@ -153,29 +216,31 @@ void loop() {
 
   client.print(response);
 
-  delay(1);
+  delay(10);
 }
 
-unsigned long previousMillis = 0;
-const long interval = 10000;
-int ledState = LOW; 
-
+/**
+ * Send unlock signal for 10 seconds - Move to user settings?
+ */
 void unlock() {
   
   unsigned long currentMillis = millis();
-  if(currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;   
-    if (ledState == LOW) {
-      ledState = HIGH;  // Note that this switches the LED *off*
-      _unlockInProgress = true;
+
+  if (currentMillis - _previousMillis < _interval) {
+    if (_ledState == LOW) {
+      _ledState = HIGH;
+      digitalWrite(D1, _ledState);  
     }
-    else {
-      ledState = LOW;   // Note that this switches the LED *on*
-      _unlockInProgress = false;
-      previousMillis = 0;
-    }
+  }
+  else {
     
-    digitalWrite(D1, ledState);
+    _ledState = LOW;
+    _unlockInProgress = false;
+    digitalWrite(D1, _ledState);
   }
 }
+
+
+
+
 

@@ -7,12 +7,17 @@
 #include <WiFiClient.h>
 
 #include "Entities.h"
-#include "Helper.h"
+#include "Settings.h"
 #include <vector>
 
 class NetworkManager {
 
   public:
+    /**
+     * Settings instance.
+     */
+    Settings _settings;
+  
     /**
     * Initializes a new instance of the NetworkManager class.
     */
@@ -37,14 +42,14 @@ class NetworkManager {
     * 
     * @param1 - wifi parameters (ssid and password)
     */
-    boolean DisconnectAndConnectToWiFi(Entities::WiFiParameters);
+    boolean DisconnectAndConnectToWiFi(Entities::WiFiParameters&);
 
   private:
 
     /**
      * Connect to selected wifi network
      */
-    boolean ConnectToWiFi(Entities::WiFiParameters);
+    boolean ConnectToWiFi(Entities::WiFiParameters&);
 
     /**
     * Setup access point
@@ -55,17 +60,6 @@ class NetworkManager {
      * Try to connect to WiFi networks. Retry counter is set to 20.
      */
     boolean TestAndConnectToWiFi();
-
-    /**
-     * Helper instance.
-     */
-    Helper _helper;
-    
-    /** 
-    * Credentials (ssid and password). 
-    */
-    const char *ssid = "LockAP";
-    //const char *password = "admin123";
 };
 
 
