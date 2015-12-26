@@ -80,6 +80,9 @@ int RequestHandler::ProcessRequest(String &request, int serverResult) {
   else if (req == "/set-nfc") {
     return Entities::AdministrationNFC;
   }
+  else if (req == "/favicon.ico") {
+    return Entities::SkipOK;
+  }
   
   return Entities::UnknownRequest;
 }
@@ -247,10 +250,10 @@ String RequestHandler::BuildRegisteredToWiFiNetworkResponse() {
 // 3. NFC
 //
 // @param1: administation type
-// @param2: incorrect (old) PIN
+// @param2: error [incorrect (old) PIN, device name is empty]
 // ---------------------
 
-String RequestHandler::BuildAdministrationResponse(int administrationType, boolean incorrectPin) {
+String RequestHandler::BuildAdministrationResponse(int administrationType, boolean error) {
   if (administrationType < 1 || administrationType > 3)
   {
     // TODO: unknown request 
@@ -281,7 +284,7 @@ String RequestHandler::BuildAdministrationResponse(int administrationType, boole
   {
     response += "<form method=\"get\" action=\"/set-pin\" id=\"pin\"><div class=\"cw r\">Set new PIN</div><div class=\"cw p40\">Old PIN</div>";
     response += "<div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"password\" maxlength=\"4\" name=\"oldpin\" id=\"oldpin\" class=\"i\" required /></div></div><div class=\"cwr r\"><div class=\"cw ";
-    response += incorrectPin ? "" : "hidden";  
+    response += error ? "" : "hidden";  
     response += "\" style=\"height:35px;\">Incorrect PIN</div></div></div><div class=\"cw p20\">New PIN</div>";
     response += "<div class=\"cw\"><div class=\"ctrlw\"><input type=\"password\" length=\"4\" name=\"newpin\" id=\"newpin\" class=\"i\" required /></div></div><div class=\"cw p20\">Confirm new PIN</div>";
     response += "<div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"password\" length=\"4\" name=\"cnewpin\" id=\"cnewpin\" class=\"i\" required /></div></div>";
@@ -291,10 +294,13 @@ String RequestHandler::BuildAdministrationResponse(int administrationType, boole
   }
   else if (administrationType == 3) 
   {
-    response += "<form method=\"get\" action=\"/nfc\"><div class=\"cw r\">NFC card administration</div><div class=\"cw p40\"><table><tr><th></th><th>Card Number</th></tr></table>";
+    response += "<form method=\"get\" action=\"/nfc\" id=\"nfc\"><div class=\"cw r\">NFC card administration</div><div class=\"cw p40\"><table><tr><th></th><th>Device name</th><th>Device key</th></tr></table></div>";
     // TODO: build NFC card table
-    response += "</div><div class=\"cw\"><div class=\"ctrlw\"><input type=\"submit\" value=\"Remove\" class=\"i p\" /></div></div><hr /><div class=\"cw p40\">NFC card number</div><div class=\"cw\"><div class=\"ctrlw\">";
-    response += "<input type=\"text\" length=\"64\" name=\"nfc\" id=\"nfc\" class=\"i\" /></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"submit\" value=\"Save\" class=\"i p\" /></div></div></form></div></body></html>";
+    response += "<div class=\"cw\"><div class=\"ctrlw\"><input type=\"button\" value=\"Delete\" class=\"i p\" onclick=\"send('d');\" /></div></div><hr /><div class=\"cw p40\"><b>Register new NFC device</b></div><div class=\"cw\">To register new device enter device name, place NFC device close to NFC reader and click on <b>Register</b> button</div>";
+    response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"64\" id=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"";
+    response += error ? "" : "hidden";
+    response += "\" id=\"e\">Enter device name</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" /><input type=\"hidden\" id=\"rem\" value=\"\" /></form></div>";
+    response += "<script>function send(a){document.getElementById('a').value=a;if(a=='d'){var tr=document.getElementsByTagName('tr');var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){if(!document.getElementById('nfc-name').value){document.getElementById('e').className='';return false;}}document.getElementById('nfc').submit();};</script></body></html>";
   }
 
   response += "</body></html>";
@@ -312,6 +318,15 @@ String RequestHandler::BuildUnknownRequestReponse() {
   response += "<div class=\"ch1 r\">Unknown request</div><div class=\"cw r\">Page does not exists</div><div class=\"cw p40\"><div class=\"ctrlw\"><a href=\"/\" class=\"i a\">Back</a></div></div></div></body></html>";
   
   return response;
+}
+
+// Build OK response
+// Responses:
+// 1. Just OK
+// ---------------------
+
+String RequestHandler::BuildOK() {
+  return RequestHandler::_start;
 }
 
 

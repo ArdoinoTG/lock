@@ -56,6 +56,7 @@ class Entities {
     static int const AdministrationSetNFC = 31;
     static int const Unlock = 100;
     static int const UnknownRequest = -1;
+    static int const SkipOK = -2;
 };
 
 #endif

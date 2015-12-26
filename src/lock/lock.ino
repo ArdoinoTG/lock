@@ -9,6 +9,14 @@
 #include "NetworkManager.h"
 #include "RequestHandler.h"
 
+#include <Wire.h>
+#include <PN532_I2C.h>
+#include <PN532.h>
+#include <NfcAdapter.h>
+
+PN532_I2C pn532i2c(Wire);
+PN532 nfc(pn532i2c);
+
 WiFiServer _server(80);
 NetworkManager _nm;
 RequestHandler _rh;
@@ -18,22 +26,133 @@ unsigned long _previousMillis = 0;
 const long _interval = 10000; // read from settings
 int _ledState = LOW; 
 
-void setup() {
-  delay(500);  
-  Serial.begin(115200); // init Serial port
-  EEPROM.begin(4096); // init EEPROM
-  delay(500);
+// ------------------------
+//
+// SETUP methods
+//
+// ------------------------
 
+void setupWiFi() {
   Serial.println("Initializing server ... ");
 
   /* Check for saved wifi connection. If there is no saved WiFi netoworks, Access point will be created. Access Point URL: http://192.168.4.1 */
+
+  // TODO: check server result
   _serverResult = _nm.Init();
   _server.begin();
 
+  digitalWrite(D6, HIGH);
+
   Serial.println("HTTP server started ... ");
+}
+
+void setupNFC() {
+  // init nfc
+  Serial.println("Init NFC!");
+
+  nfc.begin();
   
-  // unlock PIN out
-  pinMode(D1, OUTPUT);
+  uint32_t versiondata = nfc.getFirmwareVersion();
+  
+  if (!versiondata) {
+    Serial.print("Didn't find PN53x board");
+    //while (1); // halt
+  }
+  else {
+    // Got ok data, print it out!
+    Serial.print("Found chip PN5"); Serial.println((versiondata>>24) & 0xFF, HEX); 
+    Serial.print("Firmware ver. "); Serial.print((versiondata>>16) & 0xFF, DEC); 
+    Serial.print('.'); Serial.println((versiondata>>8) & 0xFF, DEC);
+    
+    // configure board to read RFID tags
+    nfc.SAMConfig();
+    
+    //Serial.println("Waiting for an ISO14443A Card ...");
+    Serial.println("NFC chip is initialized ...");
+    digitalWrite(D7, HIGH);
+  }
+}
+
+// ------------------------
+//
+// LOOP methods
+//
+// ------------------------
+
+/**
+ * Send unlock signal for 10 seconds - Move to user settings?
+ */
+void unlock() {
+
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - _previousMillis < _interval) {
+    if (_ledState == LOW) {
+      _ledState = HIGH;
+      digitalWrite(D5, _ledState);  
+    }
+  }
+  else {
+    
+    _ledState = LOW;
+    _unlockInProgress = false;
+    digitalWrite(D5, _ledState);
+  }
+}
+
+void readNfc() {
+  uint8_t success;
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
+  uint8_t uidLength;                        // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+    
+  // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
+  // 'uid' will be populated with the UID, and uidLength will indicate
+  // if the uid is 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
+  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &uid[0], &uidLength);
+
+  
+  if (success) {
+    // Display some basic information about the card
+    Serial.println("Found an ISO14443A card");
+    Serial.print("  UID Length: ");
+    Serial.print(uidLength, DEC);
+    Serial.println(" bytes");
+    Serial.print("  UID Value: ");
+    nfc.PrintHex(uid, uidLength);
+    Serial.println("");
+  }
+}
+
+// ------------------------
+//
+// SETUP and LOOP
+//
+// ------------------------
+
+void setup() {
+  delay(200);  
+  
+  // setup Serial
+  Serial.begin(115200);
+  delay(100);
+  
+  // setup EEPROM
+  EEPROM.begin(4096);
+  delay(100);
+
+  // setup PINs
+  // unlock PIN
+  pinMode(D5, OUTPUT);
+  // wifi connected PIN
+  pinMode(D6, OUTPUT);
+  // NFC init PIN
+  pinMode(D7, OUTPUT);
+
+  delay(100);
+  setupWiFi();
+  delay(200);
+  setupNFC();
+  delay(100);
 }
 
 void loop() {
@@ -41,6 +160,8 @@ void loop() {
   if (_unlockInProgress == true) {
     unlock();
   }
+
+  //readNfc();
   
   // Check if a client has connected
   WiFiClient client = _server.available();
@@ -136,6 +257,7 @@ void loop() {
           incorrectPin = false;
         }
 
+        // @param1: unlock; @param2: incorrect pin
         response = _rh.BuildMainResponse(!incorrectPin, incorrectPin);
       }
       break;
@@ -198,6 +320,12 @@ void loop() {
         response = _rh.BuildAdministrationResponse(3, false);
       }
       break;
+    case Entities::SkipOK:
+      {
+        Serial.println(" - Skip - OK");  
+        response = _rh.BuildOK();
+      }
+      break;
     case Entities::UnknownRequest:
       {
         Serial.println(" - UnknownRequest");
@@ -218,29 +346,5 @@ void loop() {
 
   delay(10);
 }
-
-/**
- * Send unlock signal for 10 seconds - Move to user settings?
- */
-void unlock() {
-  
-  unsigned long currentMillis = millis();
-
-  if (currentMillis - _previousMillis < _interval) {
-    if (_ledState == LOW) {
-      _ledState = HIGH;
-      digitalWrite(D1, _ledState);  
-    }
-  }
-  else {
-    
-    _ledState = LOW;
-    _unlockInProgress = false;
-    digitalWrite(D1, _ledState);
-  }
-}
-
-
-
 
 
