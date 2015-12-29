@@ -80,6 +80,12 @@ int RequestHandler::ProcessRequest(String &request, int serverResult) {
   else if (req == "/set-nfc") {
     return Entities::AdministrationNFC;
   }
+  else if (req.startsWith("/set-nfc?nfc-name=")) {
+    RequestHandler::_queryString = req.substring(req.indexOf('?') + 1);
+    Serial.println(RequestHandler::_queryString);
+    
+    return Entities::AdministrationSetNFC;
+  }
   else if (req == "/favicon.ico") {
     return Entities::SkipOK;
   }
@@ -155,6 +161,42 @@ Entities::PINParameters RequestHandler::GetPINParameters() {
       }
       else if (left == "cnewpin") { 
         strcpy(params.cnewpin, right.c_str());
+      }
+      
+      pos = i + 1;
+    }
+  }
+
+  return params;
+}
+
+// Get NFC parameters
+// ---------------------
+Entities::NFCParameters RequestHandler::GetNFCParameters() {
+  Entities::NFCParameters params;
+
+  int pos = 0;
+  int len = _queryString.length();
+  
+  for (int i = 0; i < len ; i++) {
+    if (_queryString[i] == '&' || i == (len - 1)) {
+      int sLen = (i == (len - 1)) ? (i + 1) :  i;
+      
+      String string = _queryString.substring(pos, sLen);
+      
+      int separatorPos = string.indexOf('=');
+
+      String left = string.substring(0, separatorPos);
+      String right = string.substring(separatorPos + 1);
+
+      if (left == "nfc-name") {
+        strcpy(params.dn, right.c_str());
+      }
+      else if (left == "a") { 
+        strcpy(params.action, right.c_str());
+      }
+      else if (left == "rem") { 
+        params.rem = right;
       }
       
       pos = i + 1;
@@ -294,13 +336,13 @@ String RequestHandler::BuildAdministrationResponse(int administrationType, boole
   }
   else if (administrationType == 3) 
   {
-    response += "<form method=\"get\" action=\"/nfc\" id=\"nfc\"><div class=\"cw r\">NFC card administration</div><div class=\"cw p40\"><table><tr><th></th><th>Device name</th><th>Device key</th></tr></table></div>";
+    response += "<form method=\"get\" action=\"/set-nfc\" id=\"nfc\"><div class=\"cw r\">NFC card administration</div><div class=\"cw p40\"><table><tr><th></th><th>Device name</th><th>Device key</th></tr></table></div>";
     // TODO: build NFC card table
     response += "<div class=\"cw\"><div class=\"ctrlw\"><input type=\"button\" value=\"Delete\" class=\"i p\" onclick=\"send('d');\" /></div></div><hr /><div class=\"cw p40\"><b>Register new NFC device</b></div><div class=\"cw\">To register new device enter device name, place NFC device close to NFC reader and click on <b>Register</b> button</div>";
-    response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"64\" id=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"";
+    response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"20\" id=\"nfc-name\" name=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"";
     response += error ? "" : "hidden";
-    response += "\" id=\"e\">Enter device name</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" /><input type=\"hidden\" id=\"rem\" value=\"\" /></form></div>";
-    response += "<script>function send(a){document.getElementById('a').value=a;if(a=='d'){var tr=document.getElementsByTagName('tr');var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){if(!document.getElementById('nfc-name').value){document.getElementById('e').className='';return false;}}document.getElementById('nfc').submit();};</script></body></html>";
+    response += "\" id=\"e\">Enter device name</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" name=\"a\" /><input type=\"hidden\" id=\"rem\" name=\"rem\" value=\"\" /></div>";
+    response += "<script>function send(a){document.getElementById('a').value=a;if(a=='d'){var tr=document.getElementsByTagName('tr');var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){if(!document.getElementById('nfc-name').value){document.getElementById('e').className='';return false;}}document.getElementById('nfc').submit();};</script></form></body></html>";
   }
 
   response += "</body></html>";

@@ -9,6 +9,15 @@ class Settings
   
   public:
 
+    struct NFC_t 
+    {
+      // access device name
+      char name[20];
+      // access uuid
+      char uuid[36];
+      
+    } NFC;
+    
     struct Config_t
     {
       // special configuration version
@@ -19,7 +28,9 @@ class Settings
       char password[32];
       // unlock pin number
       char pin[5];
-    
+      // registered devices
+      NFC_t devices[10];
+      
     } Configuration;
     
 
@@ -35,15 +46,34 @@ class Settings
     void Init();
 
     /**
+     * Check if card is valid (has valid unlock key). If card is valid unlock command will be send.
+     * 
+     * @param1: uuid
+     */
+    boolean IsCardValid(String);
+
+    /**
      * Save settings
      */
     void SaveSettings();
 
+    /**
+     * Register NFC device
+     * 
+     * @param1: device name
+     * @param2: device uuid
+     */
+    boolean RegisterNFCDevice(char *, const char *);
+
+    /**
+     * Delete NFC devices
+     * 
+     * @param1: device list
+     */
+    boolean DeleteNFCDevices(String);
+
   private:
 
-
-    
-    
 };
 
 #endif

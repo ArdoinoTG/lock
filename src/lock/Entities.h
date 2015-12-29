@@ -36,6 +36,16 @@ class Entities {
     };
 
     /**
+     * Set NFC parameters
+     */
+    struct NFCParameters {
+      public:
+        char dn[20];
+        char action[2];
+        String rem;
+    };
+
+    /**
      * Chip state:
      * 1. connected to selected wifi
      * 2. access point is created

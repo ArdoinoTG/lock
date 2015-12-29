@@ -36,6 +36,11 @@ class RequestHandler {
      */
     Entities::PINParameters GetPINParameters();
 
+    /**
+     * Get NFC parameters
+     */
+    Entities::NFCParameters GetNFCParameters();
+
     //
     // -------------------------------------
     // RESPONSES
