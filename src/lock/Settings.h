@@ -3,21 +3,13 @@
 
 #include "Arduino.h"
 #include <EEPROM.h>
+#include "Entities.h"
 
 class Settings
 {
   
   public:
 
-    struct NFC_t 
-    {
-      // access device name
-      char name[20];
-      // access uuid
-      char uuid[36];
-      
-    } NFC;
-    
     struct Config_t
     {
       // special configuration version
@@ -28,13 +20,12 @@ class Settings
       char password[32];
       // unlock pin number
       char pin[5];
+      
       // registered devices
-      NFC_t devices[10];
+      Entities::NFC devices[10];
       
     } Configuration;
     
-
-  
     /**
      * Initializes a new instance of the Settings class.
      */
@@ -74,6 +65,10 @@ class Settings
 
   private:
 
+    /**
+     * Show EEPROM data
+     */
+    void ShowEEPROMData();
 };
 
 #endif

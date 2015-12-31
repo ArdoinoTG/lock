@@ -46,6 +46,18 @@ class Entities {
     };
 
     /**
+     * NFC devices
+     */
+    struct NFC 
+    {
+      boolean valid;
+      // access device name
+      char name[20];
+      // access uuid
+      char uuid[16];
+    };
+
+    /**
      * Chip state:
      * 1. connected to selected wifi
      * 2. access point is created
@@ -65,6 +77,7 @@ class Entities {
     static int const AdministrationNFC = 30;
     static int const AdministrationSetNFC = 31;
     static int const Unlock = 100;
+    static int const CSS = 200;
     static int const UnknownRequest = -1;
     static int const SkipOK = -2;
 };

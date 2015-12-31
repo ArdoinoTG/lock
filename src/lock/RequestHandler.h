@@ -88,12 +88,22 @@ class RequestHandler {
      * Administration Type
      * 1. Main administration page
      * 2. Set PIN
-     * 3. NFC
      * 
      * @param1: administation type
-     * @param2: error [incorrect (old) PIN, device name is empty]
+     * @param2: error [incorrect (old) PIN]
      */
     String BuildAdministrationResponse(int, boolean);
+
+    /**
+     * Build NFC administration response
+     * 
+     * Responses:
+     * 1. Administration - NFC
+     * 
+     * @param1: error [device name is empty]
+     * @param2: registered NFC devices
+     */
+    String BuildNFCAdministrationResponse(boolean, Entities::NFC[10]);
 
     /**
      * Build unknown request response
@@ -107,6 +117,11 @@ class RequestHandler {
      * Build OK response
      */
     String BuildOK();
+
+    /**
+     * CSS
+     */
+    const char *_css = "html,body{font-size:20px;margin:0}.c{border-left:2px solid #cccccc;border-right:2px solid #cccccc;background-color:#fdfdff;height:100%;margin:0 auto;padding:0 12px;width:700px}.ch1{font-size:34px}.ch2{font-size:28px}.cw{padding:4px 0;width:100%}.r{color:#FF0000}.p20{padding:20px 0 0 0}.p40{padding:40px 0 0 0}.cwl{float:left;width:300px}.cwr{margin-left:350px}.ctrlw{width:250px}.a{display:block;text-align:center;text-decoration:none;color:#000000;background-color:#F0F0F0;font-size:20px !important}.i{border:2px solid #cccccc;border-radius:6px;font-size:18px;padding:8px;width:100%}.p{cursor:pointer}.f18{font-size:16px}table{border-collapse:collapse;min-width:250px;}th,td{border-bottom:1px solid #cccccc;text-align:right;padding:4px;}.hidden{visibility:hidden}";
 
   private:
 
@@ -130,10 +145,7 @@ class RequestHandler {
      */
     String _queryString;
 
-    //const char *_start = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n";
-    const char *_start = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-
-    const char *_css = "<style>html,body{font-size:20px;margin:0}.c{border-left:2px solid #cccccc;border-right:2px solid #cccccc;background-color:#fdfdff;height:100%;margin:0 auto;padding:0 12px;width:700px}.ch1{font-size:34px}.ch2{font-size:28px}.cw{padding:4px 0;width:100%}.r{color:#FF0000}.p20{padding:20px 0 0 0}.p40{padding:40px 0 0 0}.cwl{float:left;width:300px}.cwr{margin-left:350px}.ctrlw{width:250px}.a{display:block;text-align:center;text-decoration:none;color:#000000;background-color:#F0F0F0;font-size:20px !important}.i{border:2px solid #cccccc;border-radius:6px;font-size:18px;padding:8px;width:100%}.p{cursor:pointer}.f18{font-size:16px}table{border-collapse:collapse;min-width:250px;}th,td{border-bottom:1px solid #cccccc;text-align:right;padding:4px;}.hidden{visibility:hidden}</style>";
+    const char *_start = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";//<!DOCTYPE HTML>\r\n;
 };
 
 #endif

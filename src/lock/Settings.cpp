@@ -26,14 +26,21 @@ void Settings::Init() {
     for (unsigned int t=0; t<sizeof(Configuration); t++) {
       *((char*)&Configuration + t) = EEPROM.read(t);
     }
+
+    Settings::ShowEEPROMData();
   }
   else {
     // save init settings
     strcpy(Configuration.pin, DEFAULT_PIN);
     strcpy(Configuration.version, CONFIG_VERSION);
+    // set valid record to false
+    for (int i = 0; i < 10; i++) {
+      Configuration.devices[i].valid = false;
+    }
+    
     Serial.println("Save init configuration ... ");
     
-    Settings:SaveSettings();
+    Settings::SaveSettings();
   }
 }
 
@@ -61,20 +68,7 @@ boolean Settings::IsCardValid(String uuid) {
 
 void Settings::SaveSettings() {
   Serial.println("Save configuration to EEPROM");
-  Serial.print("Version: ");
-  Serial.println(Configuration.version);
-  Serial.print("PIN: ");
-  Serial.println(Configuration.pin);
-  Serial.print("SSID: ");
-  Serial.println(Configuration.ssid);
-  Serial.print("Password: ");
-  Serial.println(Configuration.password);
-
-  Serial.println("Registered devices: ");
-  for (int i = 0; i < 10; i++) {
-    Serial.print("Device "); Serial.print(i); Serial.println(":");
-    Serial.print("Name: "); Serial.println(Configuration.devices[i].name);Serial.print(" UUID: "); Serial.println(Configuration.devices[i].uuid);
-  }
+  Settings::ShowEEPROMData();
  
   for (unsigned int t=0; t<sizeof(Configuration); t++) {
     EEPROM.write(t, *((char*)&Configuration + t));
@@ -86,29 +80,32 @@ void Settings::SaveSettings() {
 // Register NFC device
 // ---------------------
 boolean Settings::RegisterNFCDevice(char *dn, const char *uuid) {
-  Serial.print("Settings - dn: ");
+  Serial.println("Settings::RegisterNFCDevice");
+  Serial.print("Device name: ");
   Serial.println(dn);
-  Serial.print("uuid: ");
+  Serial.print("UUID: ");
   Serial.println(uuid);
 
   // save to first free slot
   for (int i = 0; i < 10; i++) {
-    String temp1(Configuration.devices[i].name);
-    String temp2(Configuration.devices[i].uuid);
-    
-    Serial.print("temp1: ");Serial.println(temp1);
-    Serial.print("temp2: ");Serial.println(temp2);
-    
-    if (temp1.length() == 0 && temp2.length() == 0) {
+    if (!Configuration.devices[i].valid) {
       Serial.println("write to EEPROM");
+      // set device slot to valid
+      Configuration.devices[i].valid = true;
+      // set device slot name
+      strcpy(Configuration.devices[i].name, dn);
+      // set devic slot uuid
+      strcpy(Configuration.devices[i].uuid, uuid);
+      // save settings
+      Settings::SaveSettings();
+      // return true
+      return true;
     }
-    else {
-      Serial.println("write to EEPROM false");
-    }
-    break;
   }
+
+  Serial.println("write to EEPROM false");
   
-  return true;
+  return false;
 }
 
 // Delete NFC devices
@@ -121,5 +118,24 @@ boolean Settings::DeleteNFCDevices(String devices) {
  * Private methods
  */
 
+// Show EEPROM data
+// ---------------------
+void Settings::ShowEEPROMData() {
+  Serial.print("Version: ");
+  Serial.println(Configuration.version);
+  Serial.print("PIN: ");
+  Serial.println(Configuration.pin);
+  Serial.print("SSID: ");
+  Serial.println(Configuration.ssid);
+  Serial.print("Password: ");
+  Serial.println(Configuration.password);
+
+  Serial.println("Registered devices: ");
+  for (int i = 0; i < 10; i++) {
+    Serial.print("Device "); Serial.print(i); Serial.println(":");
+    Serial.print("Valid: "); Serial.println(Configuration.devices[i].valid);
+    Serial.print("Name: "); Serial.println(Configuration.devices[i].name);Serial.print("UUID: "); Serial.println(Configuration.devices[i].uuid);
+  }
+}
 
 

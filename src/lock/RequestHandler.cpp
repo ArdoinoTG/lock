@@ -89,6 +89,9 @@ int RequestHandler::ProcessRequest(String &request, int serverResult) {
   else if (req == "/favicon.ico") {
     return Entities::SkipOK;
   }
+  else if (req == "/style.css") {
+    return Entities::CSS;
+  }
   
   return Entities::UnknownRequest;
 }
@@ -284,21 +287,19 @@ String RequestHandler::BuildRegisteredToWiFiNetworkResponse() {
 // 1. Administration
 // 2. Administration - Set new PIN
 // 3. Administration - Incorrect PIN
-// 4. Administration - NFC TODO: Card detecting
 //
 // Administration Type
 // 1. Main administration page
 // 2. Set PIN
-// 3. NFC
 //
 // @param1: administation type
-// @param2: error [incorrect (old) PIN, device name is empty]
+// @param2: error [incorrect (old) PIN]
 // ---------------------
 
 String RequestHandler::BuildAdministrationResponse(int administrationType, boolean error) {
-  if (administrationType < 1 || administrationType > 3)
+  if (administrationType != 1 && administrationType != 2)
   {
-    // TODO: unknown request 
+    return RequestHandler::BuildUnknownRequestReponse();
   }
   
   String response;
@@ -309,10 +310,6 @@ String RequestHandler::BuildAdministrationResponse(int administrationType, boole
   else if (administrationType == 2) 
   {
     response += RequestHandler::HtmlStart("Administration - Set PIN");
-  }
-  else if (administrationType == 3) 
-  {
-    response += RequestHandler::HtmlStart("Administration - NFC");
   }
 
   response += "<div class=\"ch1 r\">Smart Key Lock Settings</div>";
@@ -332,19 +329,43 @@ String RequestHandler::BuildAdministrationResponse(int administrationType, boole
     response += "<div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"password\" length=\"4\" name=\"cnewpin\" id=\"cnewpin\" class=\"i\" required /></div></div>";
     response += "<div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"hidden\" id=\"e\">New PIN and Confirm new PIN does not match!</div></div></div></div>";
     response += "<div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Save\" class=\"i p\" onclick=\"send();\" /></div></div></form></div>";
-    response += "<script>function send(){var np = document.getElementById('newpin');var cnp=document.getElementById('cnewpin');if(np.value != cnp.value){document.getElementById('e').className = '';return false;}document.getElementById('pin').submit();}</script></body></html>";
-  }
-  else if (administrationType == 3) 
-  {
-    response += "<form method=\"get\" action=\"/set-nfc\" id=\"nfc\"><div class=\"cw r\">NFC card administration</div><div class=\"cw p40\"><table><tr><th></th><th>Device name</th><th>Device key</th></tr></table></div>";
-    // TODO: build NFC card table
-    response += "<div class=\"cw\"><div class=\"ctrlw\"><input type=\"button\" value=\"Delete\" class=\"i p\" onclick=\"send('d');\" /></div></div><hr /><div class=\"cw p40\"><b>Register new NFC device</b></div><div class=\"cw\">To register new device enter device name, place NFC device close to NFC reader and click on <b>Register</b> button</div>";
-    response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"20\" id=\"nfc-name\" name=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"";
-    response += error ? "" : "hidden";
-    response += "\" id=\"e\">Enter device name</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" name=\"a\" /><input type=\"hidden\" id=\"rem\" name=\"rem\" value=\"\" /></div>";
-    response += "<script>function send(a){document.getElementById('a').value=a;if(a=='d'){var tr=document.getElementsByTagName('tr');var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){if(!document.getElementById('nfc-name').value){document.getElementById('e').className='';return false;}}document.getElementById('nfc').submit();};</script></form></body></html>";
+    response += "<script>function send(){var np = document.getElementById('newpin');var cnp=document.getElementById('cnewpin');if(np.value != cnp.value){document.getElementById('e').className = '';return false;}document.getElementById('pin').submit();}</script>";
   }
 
+  response += "</body></html>";
+
+  return response;
+}
+
+// Build NFC administration response
+// Responses:
+// 1. Administration - NFC
+//
+// @param1: error [device name is empty]
+// @param2: registered NFC devices
+String RequestHandler::BuildNFCAdministrationResponse(boolean error, Entities::NFC devices[10]) {
+
+  String response;
+  response += RequestHandler::HtmlStart("Administration - NFC");
+  response += "<div class=\"ch1 r\">Smart Key Lock Settings</div>";
+  response += "<form method=\"get\" action=\"/set-nfc\" id=\"nfc\"><div class=\"cw r\">NFC card administration</div><div class=\"cw p40\"><table><tr><th></th><th>Device name</th><th>Device key</th></tr>";
+  for (int i = 0; i < 10; i++) {
+    if (devices[i].valid) {
+      response += "<tr><td><input type=\"checkbox\" /></td><td>";
+      response += devices[i].name;
+      response += "</td><td>";
+      response += devices[i].uuid;
+      response += "</td></tr>";
+    }
+    else {
+      response += "<tr><td></td><td></td><td></td></tr>";
+    }
+  }
+  response += "</table></div><div class=\"cw\"><div class=\"ctrlw\"><input type=\"button\" value=\"Delete\" class=\"i p\" onclick=\"send('d');\" /></div></div><hr /><div class=\"cw p40\"><b>Register new NFC device</b></div><div class=\"cw\">To register new device enter device name, place NFC device close to NFC reader and click on <b>Register</b> button</div>";
+  response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"20\" id=\"nfc-name\" name=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"";
+  response += error ? "" : "hidden";
+  response += "\" id=\"e\">Enter device name</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" name=\"a\" /><input type=\"hidden\" id=\"rem\" name=\"rem\" value=\"\" /></form></div>";
+  response += "<script>function send(a){document.getElementById('a').value=a;if(a=='d'){var tr=document.getElementsByTagName('tr');var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){if(!document.getElementById('nfc-name').value){document.getElementById('e').className='';return false;}}document.getElementById('nfc').submit();};</script>";
   response += "</body></html>";
 
   return response;
@@ -381,8 +402,7 @@ String RequestHandler::BuildOK() {
 String RequestHandler::HtmlStart(String title) 
 {
   String start = RequestHandler::_start;
-  start += "<html><head><title>" + title + "</title><meta charset=\"utf-8\" />";
-  start += RequestHandler::_css;
+  start += "<html><head><title>" + title + "</title><meta charset=\"utf-8\" /><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\">";
   start += "</head><body><div class=\"c\">";
 
   return start;
