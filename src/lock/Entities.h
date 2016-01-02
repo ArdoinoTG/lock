@@ -52,9 +52,9 @@ class Entities {
     {
       boolean valid;
       // access device name
-      char name[20];
+      char name[21];
       // access uuid
-      char uuid[16];
+      char uuid[17];
     };
 
     /**

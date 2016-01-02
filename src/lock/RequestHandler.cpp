@@ -81,7 +81,18 @@ int RequestHandler::ProcessRequest(String &request, int serverResult) {
     return Entities::AdministrationNFC;
   }
   else if (req.startsWith("/set-nfc?nfc-name=")) {
-    RequestHandler::_queryString = req.substring(req.indexOf('?') + 1);
+    String qs = req.substring(req.indexOf('?') + 1);
+    qs.replace('+', ' ');
+    
+    char *out = new char[qs.length() + 1];
+    RequestHandler::DecodeURI(qs.c_str(), out);
+    out[qs.length()] = '\0'; // don't forget the terminating 0
+    
+    String temp(out);    
+    RequestHandler::_queryString = temp;
+    delete[] out;
+
+    Serial.print("Decoded request: ");
     Serial.println(RequestHandler::_queryString);
     
     return Entities::AdministrationSetNFC;
@@ -341,9 +352,9 @@ String RequestHandler::BuildAdministrationResponse(int administrationType, boole
 // Responses:
 // 1. Administration - NFC
 //
-// @param1: error [device name is empty]
+// @param1: error [0: no errors][1: device name is empty][2: device name already exists][3: something went wrong. please try again]
 // @param2: registered NFC devices
-String RequestHandler::BuildNFCAdministrationResponse(boolean error, Entities::NFC devices[10]) {
+String RequestHandler::BuildNFCAdministrationResponse(int error, Entities::NFC devices[10]) {
 
   String response;
   response += RequestHandler::HtmlStart("Administration - NFC");
@@ -362,10 +373,18 @@ String RequestHandler::BuildNFCAdministrationResponse(boolean error, Entities::N
     }
   }
   response += "</table></div><div class=\"cw\"><div class=\"ctrlw\"><input type=\"button\" value=\"Delete\" class=\"i p\" onclick=\"send('d');\" /></div></div><hr /><div class=\"cw p40\"><b>Register new NFC device</b></div><div class=\"cw\">To register new device enter device name, place NFC device close to NFC reader and click on <b>Register</b> button</div>";
-  response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"20\" id=\"nfc-name\" name=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div class=\"";
-  response += error ? "" : "hidden";
-  response += "\" id=\"e\">Enter device name</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" name=\"a\" /><input type=\"hidden\" id=\"rem\" name=\"rem\" value=\"\" /></form></div>";
-  response += "<script>function send(a){document.getElementById('a').value=a;if(a=='d'){var tr=document.getElementsByTagName('tr');var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){if(!document.getElementById('nfc-name').value){document.getElementById('e').className='';return false;}}document.getElementById('nfc').submit();};</script>";
+  response += "<div class=\"cw\">Device name</div><div class=\"cw\"><div class=\"cwl\"><div class=\"ctrlw\"><input type=\"text\" length=\"20\" id=\"nfc-name\" name=\"nfc-name\" class=\"i\" /></div></div><div class=\"cwr r\"><div class=\"cw\" style=\"height:35px;\"><div id=\"e\">";
+  if (error == 1) {
+    response += "Enter device name.";
+  }
+  else if (error == 2) {
+    response += "The same device name already exists.";
+  }
+  else if (error == 3) {
+    response += "Something went wrong. Please try again.";
+  }
+  response += "</div></div></div></div><div class=\"cw p20\"><div class=\"ctrlw\"><input type=\"button\" value=\"Register\" class=\"i p\" onclick=\"send('r');\" /></div></div><input type=\"hidden\" id=\"a\" name=\"a\" /><input type=\"hidden\" id=\"rem\" name=\"rem\" value=\"\" /></form></div>";
+  response += "<script>function send(a){document.getElementById('a').value=a;var tr=document.getElementsByTagName('tr');if(a=='d'){var rem=document.getElementById('rem');for(var i=1;i<tr.length;i++){if(tr[i].children[0].children[0]&&tr[i].children[0].children[0].checked){rem.value+=tr[i].children[2].innerText+';';}}if(!rem.value){return false;}rem.value=rem.value.slice(0,-1);}else if(a=='r'){var n=document.getElementById('nfc-name').value;var e=document.getElementById('e');if(!n){e.innerText='Enter device name.';return false;}else{for(var i=1;i<tr.length;i++){if (tr[i].children[1].innerText==n){e.innerText='The same device name already exists.';return false;}}}}document.getElementById('nfc').submit();};</script>";
   response += "</body></html>";
 
   return response;

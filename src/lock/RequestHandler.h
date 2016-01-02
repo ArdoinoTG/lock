@@ -100,10 +100,10 @@ class RequestHandler {
      * Responses:
      * 1. Administration - NFC
      * 
-     * @param1: error [device name is empty]
+     * @param1: error [0: no errors][1: device name is empty][2: device name already exists][3: something went wrong. please try again]
      * @param2: registered NFC devices
      */
-    String BuildNFCAdministrationResponse(boolean, Entities::NFC[10]);
+    String BuildNFCAdministrationResponse(int, Entities::NFC[10]);
 
     /**
      * Build unknown request response

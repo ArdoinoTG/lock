@@ -15,9 +15,9 @@ class Settings
       // special configuration version
       char version[4];
       // ssid name
-      char ssid[32];
+      char ssid[33];
       // ssid password
-      char password[32];
+      char password[33];
       // unlock pin number
       char pin[5];
       
@@ -41,7 +41,7 @@ class Settings
      * 
      * @param1: uuid
      */
-    boolean IsCardValid(String);
+    boolean IsCardValid(const char *);
 
     /**
      * Save settings
@@ -54,14 +54,21 @@ class Settings
      * @param1: device name
      * @param2: device uuid
      */
-    boolean RegisterNFCDevice(char *, const char *);
+    boolean RegisterNFCDevice(const char *, const char *);
 
     /**
      * Delete NFC devices
      * 
-     * @param1: device list
+     * @param1: device uuids
      */
     boolean DeleteNFCDevices(String);
+
+    /**
+     * Check whether device name already exits or not
+     * 
+     * @param1: device name
+     */
+    boolean DeviceNameExists(const char *);
 
   private:
 
@@ -69,6 +76,11 @@ class Settings
      * Show EEPROM data
      */
     void ShowEEPROMData();
+
+    /**
+     * Sort devices by name
+     */
+    void Sort();
 };
 
 #endif
