@@ -16,6 +16,8 @@ Settings::Settings() {
  * Public methods
  */
 
+// Init
+// ---------------------
 void Settings::Init() {
   
   Serial.println("Read from EEPROM");
@@ -34,9 +36,9 @@ void Settings::Init() {
     // save init settings
     strcpy(Configuration.pin, DEFAULT_PIN);
     strcpy(Configuration.version, CONFIG_VERSION);
-    // REMOVE THIS
-    /*strcpy(Configuration.ssid, "Les Couleurs");
-    strcpy(Configuration.password, "1nt3rn3t");*/
+    strcpy(Configuration.ssid, "");
+    strcpy(Configuration.password, "");
+    
     // init device slots
     for (int i = 0; i < DEVICES; i++) {
       Configuration.devices[i].valid = false;
@@ -168,7 +170,7 @@ boolean Settings::DeviceNameExists(const char *dn) {
 
   for (int i = 0; i < DEVICES; i++) {
     if (Configuration.devices[i].valid && strcmp(Configuration.devices[i].name, dn) == 0) {
-      Serial.print("Found device with same name on slot: ");Serial.println(i + 1);
+      Serial.print("Found device with the same name on slot: ");Serial.println(i + 1);
       return true;
     }
   }

@@ -287,7 +287,10 @@ void checkNFCReaderForCard() {
   }
 }
 
-void gen_random(char *s, const int len) {
+/**
+   Generate random access key
+*/
+void generateAccessKey(char *s, const int len) {
   static const char alphanum[] =
     "0123456789"
     "-!#()?"
@@ -299,6 +302,239 @@ void gen_random(char *s, const int len) {
   }
 
   s[len] = 0;
+}
+
+// Handle user actions
+// ---------------------
+
+/**
+   Register WiFi network action
+*/
+String registerWiFi() {
+  String response = _rh.BuildRegisteredToWiFiNetworkResponse();
+
+  Entities::WiFiParameters params = _rh.GetWiFiParameters();
+
+  Serial.println("------------");
+  Serial.println(params.ssid);
+  Serial.println(params.password);
+  Serial.println("------------");
+
+  delay(100);
+  if (_nm.DisconnectAndConnectToWiFi(params)) {
+    Serial.println("Connected to selected WiFi");
+    _serverResult = Entities::ConnectedToWiFi;
+    _server.begin();
+  }
+  else {
+    // set error
+    Serial.println("Failed to connect to WiFi ...");
+  }
+
+  return response;
+}
+
+/**
+   Handle unlock user action
+*/
+String handleUnlock() {
+  String PIN = _rh.GetUnlockPIN();
+
+  Serial.print("PIN: ");
+  Serial.println(PIN);
+
+  boolean incorrectPin = true;
+  if (PIN == _nm._settings.Configuration.pin) { // read PIN from settings
+    incorrectPin = false;
+    unlockSetup();
+  }
+
+  // @param1: unlock; @param2: incorrect pin
+  String response = _rh.BuildMainResponse(!incorrectPin, incorrectPin);
+
+  return response;
+}
+
+/**
+   Set new PIN action
+*/
+String setPIN() {
+  Entities::PINParameters params = _rh.GetPINParameters();
+
+  Serial.println("------------");
+  Serial.println(params.oldpin);
+  Serial.println(params.newpin);
+  Serial.println(params.cnewpin);
+  Serial.println("");
+  Serial.println(_nm._settings.Configuration.pin);
+  Serial.println("------------");
+
+//  String temp1(params.oldpin);
+//  String temp2(_nm._settings.Configuration.pin);
+//  String temp3(params.newpin);
+//  String temp4(params.cnewpin);
+
+  String response;
+  // check old pin
+  if (strcmp(params.oldpin, _nm._settings.Configuration.pin) != 0/*temp1 != temp2*/) {
+    // incorrect old pin
+    Serial.println("Incorrect old pin");
+    response = _rh.BuildAdministrationResponse(2, true);
+  }
+  else if (strcmp(params.newpin, params.cnewpin) != 0 /*temp3 != temp4*/) {
+    // check new pin and confirm new pin match
+    Serial.println("New pin and confirm new pin does not match");
+    //TODO inform user
+    response = _rh.BuildAdministrationResponse(2, false);
+  }
+  else {
+    Serial.println("Save new pin");
+    // save
+    strcpy(_nm._settings.Configuration.pin, params.newpin);
+    _nm._settings.SaveSettings(); 
+    response = _rh.BuildAdministrationResponse(1, false);
+  }
+
+  return response;
+}
+
+/**
+   Set NFC device action
+*/
+String setNFC() {
+  Entities::NFCParameters params = _rh.GetNFCParameters();
+  Serial.println("------------");
+  Serial.println(params.dn);
+  Serial.println(params.action);
+  Serial.println(params.rem);
+  Serial.println("------------");
+
+  int result = 0;
+  if (params.action[0] == 'd') {
+    Serial.println("Delete");
+    // delete
+    _nm._settings.DeleteNFCDevices(params.rem);
+    Serial.println("All selected devices are removed.");
+  }
+  else if (params.action[0] == 'r') {
+    Serial.println("Register");
+
+    // Generate a new UUID
+    char uuid[16];
+    generateAccessKey(uuid, 16);
+
+    if (strcmp(params.dn, "") == 0) {
+      result = 1;
+    }
+    else if (_nm._settings.DeviceNameExists(params.dn)) {
+      result = 2;
+    }
+    else {
+      if (writeToNFC(uuid) && _nm._settings.RegisterNFCDevice(params.dn, uuid)) {
+        Serial.println("Write and register success.");
+      }
+      else {
+        Serial.println("Write and register UNSUCCESSFUL.");
+        result = 3;
+      }
+    }
+  }
+
+  String response = _rh.BuildNFCAdministrationResponse(result, _nm._settings.Configuration.devices);
+
+  return response;
+}
+
+/**
+   Handle user action
+*/
+String handleUserAction(int action) {
+  Serial.print("action: ");
+  Serial.print(action);
+
+  String response = _rh.BuildUnknownRequestReponse();
+
+  switch (action) {
+    case Entities::Welcome:
+      {
+        Serial.println(" - Welcome");
+        response = _rh.BuildMainResponse(false, false);
+      }
+      break;
+    case Entities::Register:
+      {
+        Serial.println(" - Register");
+        std::vector<Entities::WiFiNetwork> networks = _nm.ScanForWiFiNetworks();
+        response = _rh.BuildAvailableWiFiReponse(networks);
+      }
+      break;
+    case Entities::RegisterWiFi:
+      {
+        Serial.println(" - RegisterWiFi");
+        response = registerWiFi();
+      }
+      break;
+    case Entities::Administration:
+      {
+        Serial.println(" - Administration");
+        response = _rh.BuildAdministrationResponse(1, false);
+      }
+      break;
+    case Entities::Unlock:
+      {
+        Serial.println(" - Unlock");
+        response = handleUnlock();
+      }
+      break;
+    case Entities::AdministrationPIN:
+      {
+        Serial.println(" - Administration - PIN");
+        response = _rh.BuildAdministrationResponse(2, false);
+      }
+      break;
+    case Entities::AdministrationSetPIN:
+      {
+        Serial.println(" - Administration - Set PIN");
+        response = setPIN();
+      }
+      break;
+    case Entities::AdministrationNFC:
+      {
+        Serial.println(" - Administration - NFC");
+        response = _rh.BuildNFCAdministrationResponse(0, _nm._settings.Configuration.devices);
+      }
+      break;
+    case Entities::AdministrationSetNFC:
+      {
+        Serial.println(" - Administration- Set NFC");
+        response = setNFC();
+      }
+      break;
+    case Entities::SkipOK:
+      {
+        Serial.println(" - Skip - OK");
+        response = _rh.BuildOK();
+      }
+      break;
+    case Entities::CSS:
+      {
+        Serial.println(" - CSS ");
+        response = _rh._css;
+      }
+      break;
+    case Entities::UnknownRequest:
+      {
+        Serial.println(" - UnknownRequest");
+      }
+      break;
+    default:
+      {
+        Serial.print(" - default");
+      }
+      break;
+  }
+
+  return response;
 }
 
 // ------------------------
@@ -335,6 +571,9 @@ void setup() {
   randomSeed(analogRead(0));
 }
 
+/**
+   MAIN LOOP
+*/
 void loop() {
 
   if (_unlockInProgress == true) {
@@ -368,202 +607,12 @@ void loop() {
   }
 
   // Read the first line of the request
-  String req = client.readStringUntil('\r');
-  Serial.println(req);
+  String request = client.readStringUntil('\r');
+  Serial.println(request);
   client.flush();
 
-  String response = _rh.BuildUnknownRequestReponse();
-
-  int action = _rh.ProcessRequest(req, _serverResult);
-  Serial.print("action: ");
-  Serial.print(action);
-
-  switch (action) {
-    case Entities::Welcome:
-      {
-        Serial.println(" - Welcome");
-        response = _rh.BuildMainResponse(false, false);
-      }
-      break;
-    case Entities::Register:
-      {
-        Serial.println(" - Register");
-        std::vector<Entities::WiFiNetwork> networks = _nm.ScanForWiFiNetworks();
-        response = _rh.BuildAvailableWiFiReponse(networks);
-      }
-      break;
-    case Entities::RegisterWiFi:
-      {
-        Serial.println(" - RegisterWiFi");
-
-        response = _rh.BuildRegisteredToWiFiNetworkResponse();
-
-        Entities::WiFiParameters params = _rh.GetWiFiParameters();
-
-        Serial.println("------------");
-        Serial.println(params.ssid);
-        Serial.println(params.password);
-        Serial.println("------------");
-
-        delay(100);
-        if (_nm.DisconnectAndConnectToWiFi(params)) {
-          Serial.println("Connected to selected WiFi");
-          _serverResult = Entities::ConnectedToWiFi;
-          _server.begin();
-        }
-        else {
-          // set error
-          Serial.println("Failed to connect to WiFi ...");
-        }
-      }
-      break;
-    case Entities::Administration:
-      {
-        Serial.println(" - Administration");
-        response = _rh.BuildAdministrationResponse(1, false);
-      }
-      break;
-    case Entities::Unlock:
-      {
-        Serial.println(" - Unlock");
-
-        String PIN = _rh.GetUnlockPIN();
-
-        Serial.print("PIN: ");
-        Serial.println(PIN);
-
-        boolean incorrectPin = true;
-        if (PIN == _nm._settings.Configuration.pin) { // read PIN from settings
-          incorrectPin = false;
-          unlockSetup();
-        }
-
-        // @param1: unlock; @param2: incorrect pin
-        response = _rh.BuildMainResponse(!incorrectPin, incorrectPin);
-      }
-      break;
-    case Entities::AdministrationPIN:
-      {
-        Serial.println(" - Administration - PIN");
-        response = _rh.BuildAdministrationResponse(2, false);
-      }
-      break;
-    case Entities::AdministrationSetPIN:
-      {
-        Serial.println(" - Administration - Set PIN");
-
-        Entities::PINParameters params = _rh.GetPINParameters();
-
-        Serial.println("------------");
-        Serial.println(params.oldpin);
-        Serial.println(params.newpin);
-        Serial.println(params.cnewpin);
-        Serial.println("");
-        Serial.println(_nm._settings.Configuration.pin);
-        Serial.println("------------");
-
-        String temp1(params.oldpin);
-        String temp2(_nm._settings.Configuration.pin);
-        String temp3(params.newpin);
-        String temp4(params.cnewpin);
-
-        // check old pin
-        if (temp1 != temp2) {
-          // incorrect old pin
-          Serial.println("Incorrect old pin");
-          response = _rh.BuildAdministrationResponse(2, true);
-        }
-        else if (temp3 != temp4) {
-          // check new pin and confirm new pin match
-          Serial.println("New pin and confirm new pin does not match");
-          //TODO inform user
-          response = _rh.BuildAdministrationResponse(2, false);
-        }
-        else {
-          Serial.println("Save new pin");
-          // save
-          strcpy(_nm._settings.Configuration.pin, params.newpin);
-          _nm._settings.SaveSettings();
-          // return administration
-          response = _rh.BuildAdministrationResponse(1, false);
-        }
-      }
-      break;
-    case Entities::AdministrationNFC:
-      {
-        Serial.println(" - Administration - NFC");
-        response = _rh.BuildNFCAdministrationResponse(0, _nm._settings.Configuration.devices);
-      }
-      break;
-    case Entities::AdministrationSetNFC:
-      {
-        Serial.println(" - Administration- Set NFC");
-
-        Entities::NFCParameters params = _rh.GetNFCParameters();
-        Serial.println("------------");
-        Serial.println(params.dn);
-        Serial.println(params.action);
-        Serial.println(params.rem);
-        Serial.println("------------");
-
-        int result = 0;
-        if (params.action[0] == 'd') {
-          Serial.println("Delete");
-          // delete
-          _nm._settings.DeleteNFCDevices(params.rem);
-          Serial.println("All selected devices are removed.");
-
-        }
-        else if (params.action[0] == 'r') {
-          Serial.println("Register");
-
-          // Generate a new UUID
-          char uuid[16];
-          gen_random(uuid, 16);
-
-          if (strcmp(params.dn, "") == 0) {
-            result = 1;
-          }
-          else if (_nm._settings.DeviceNameExists(params.dn)) {
-            result = 2;
-          }
-          else {
-            if (writeToNFC(uuid) && _nm._settings.RegisterNFCDevice(params.dn, uuid)) {
-              Serial.println("Write and register success.");
-            }
-            else {
-              Serial.println("Write and register UNSUCCESSFUL.");
-              result = 3;
-            }
-          }
-        }
-
-        response = _rh.BuildNFCAdministrationResponse(result, _nm._settings.Configuration.devices);
-      }
-      break;
-    case Entities::SkipOK:
-      {
-        Serial.println(" - Skip - OK");
-        response = _rh.BuildOK();
-      }
-      break;
-    case Entities::CSS:
-      {
-        Serial.println(" - CSS ");
-        response = _rh._css;
-      }
-      break;
-    case Entities::UnknownRequest:
-      {
-        Serial.println(" - UnknownRequest");
-      }
-      break;
-    default:
-      {
-        Serial.print(" - default");
-      }
-      break;
-  }
+  int action = _rh.ProcessRequest(request, _serverResult);
+  String response = handleUserAction(action);
 
   Serial.println(response);
 

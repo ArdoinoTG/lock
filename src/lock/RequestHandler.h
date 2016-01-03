@@ -145,6 +145,9 @@ class RequestHandler {
      */
     String _queryString;
 
+    /**
+     * Begin of the response
+     */
     const char *_start = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";//<!DOCTYPE HTML>\r\n;
 };
 
